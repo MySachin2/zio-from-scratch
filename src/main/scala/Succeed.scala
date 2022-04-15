@@ -132,7 +132,7 @@ object ZipOps extends ZIOApp {
 }
 
 object StackSafety extends ZIOApp {
-  val zio: ZIO[Unit] = ZIO.succeed(println("Howdy")).repeat(1000000)
+  val zio: ZIO[Unit] = ZIO.succeed(println("Howdy")).repeat(100)
 
   override def run: ZIO[Unit] = zio
 }
