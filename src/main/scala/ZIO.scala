@@ -41,11 +41,14 @@ sealed trait ZIO[+A] {
 
     type Erased = ZIO[Any]
     type Cont = Any => Erased
+    type ErasedCallback = Any => Any
 
     val stack = new scala.collection.mutable.Stack[Cont]()
 
 
     def erase[A](zio: ZIO[A]): Erased = zio
+
+    def eraseCallback[A](cb: A => Unit): ErasedCallback = cb.asInstanceOf[ErasedCallback]
 
     var currentZIO = erase(this)
 
@@ -62,17 +65,36 @@ sealed trait ZIO[+A] {
       }
     }
 
-    while(loop) {
-      currentZIO match {
-        case ZIO.Succeed(value) => complete(value)
-        case ZIO.Effect(thunk) => complete(thunk())
-        case ZIO.FlatMap(zio, cont) => {
-          stack.push(cont)
-          currentZIO = zio
+    def resume(): Unit = {
+      loop = true
+      run()
+    }
+
+    def run(): Unit = {
+      while (loop) {
+        currentZIO match {
+          case ZIO.Succeed(value) => complete(value)
+          case ZIO.Effect(thunk) => complete(thunk())
+          case ZIO.FlatMap(zio, cont) => {
+            stack.push(cont)
+            currentZIO = zio
+          }
+          case ZIO.Async(register) => {
+            loop = false
+            if (stack.isEmpty) {
+              register(eraseCallback(callback))
+            }
+            else {
+              register { a =>
+                currentZIO = ZIO.succeedNow(a)
+                resume()
+              }
+            }
+          }
         }
       }
     }
-
+    run()
   }
 }
 
